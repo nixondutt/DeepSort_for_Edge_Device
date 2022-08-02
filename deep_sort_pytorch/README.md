@@ -1,6 +1,8 @@
-# Deep Sort with PyTorch
+# Deep Sort
 
-![](demo/demo.gif)
+## Changes 02-08-2022
+
+- ONNX conversion added
 
 ## Update(1-1-2020)
 Changes
