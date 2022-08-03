@@ -3,56 +3,54 @@ import torchvision.transforms as transforms
 import numpy as np
 import cv2
 import logging
+import tensorflow as tf
 
-from .model import Net
+# from .model import Net
 # from model import Net
 
 
-class Extractor(object):
-    def __init__(self, model_path, use_cuda=True):
-        self.net = Net(reid=True)
-        self.device = "cuda" if torch.cuda.is_available() and use_cuda else "cpu"
-        state_dict = torch.load(model_path, map_location=lambda storage, loc: storage)[
-            'net_dict']
-        self.net.load_state_dict(state_dict)
+
+class Tflite_extractor(object):
+    def __init__(self,model_path):
+        self.interpreter = tf.lite.Interpreter(model_path = model_path)
+        self.interpreter.allocate_tensors()
+        self.input_details = self.interpreter.get_input_details()
+        self.output_details = self.interpreter.get_output_details()
+        self.input_size = (20,3,128,64)
+        self.input_data = np.zeros(self.input_size,dtype=np.float32)
+        self.interpreter.resize_tensor_input(self.input_details[0]['index'],self.input_size)
+        self.interpreter.allocate_tensors()
         logger = logging.getLogger("root.tracker")
-        logger.info("Loading weights from {}... Done!".format(model_path))
-        self.net.to(self.device)
-        self.size = (64, 128)
+        logger.info("LOADED deepsort tflite model")
+        self.size = (64,128)
         self.norm = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ])
+    @staticmethod
+    def _resize(im,size):
+        return cv2.resize(im.astype(np.float32)/255., size)
+
 
     def _preprocess(self, im_crops):
-        """
-        TODO:
-            1. to float with scale from 0 to 1
-            2. resize to (64, 128) as Market1501 dataset did
-            3. concatenate to a numpy array
-            3. to torch Tensor
-            4. normalize
-        """
-        def _resize(im, size):
-            return cv2.resize(im.astype(np.float32)/255., size)
-        
-
-
-        im_batch = torch.cat([self.norm(_resize(im, self.size)).unsqueeze(
+        num_imgs = len(im_crops)
+        im_batch = torch.cat([self.norm(Tflite_extractor._resize(im, self.size)).unsqueeze(
             0) for im in im_crops], dim=0).float()
-        
-        return im_batch  ##torh.size([batch_size, 3,128, 64])
-
-    def __call__(self, im_crops):
+        inputs = im_batch.cpu().detach().numpy()  #numpy array (?, 3, 128, 64)
+        frame_input = np.copy(self.input_data)
+        frame_input[:num_imgs] = inputs
+        return frame_input
+    
+    def __call__(self,im_crops):
         im_batch = self._preprocess(im_crops)
-        with torch.no_grad():
-            im_batch = im_batch.to(self.device)
-            features = self.net(im_batch)
-        return features.cpu().numpy()
+        self.interpreter.set_tensor(self.input_details[0]['index'],im_batch)
+        self.interpreter.invoke()
+        features = self.interpreter.get_tensor(self.output_details[0]['index'])
+        return features
 
 
 if __name__ == '__main__':
     img = cv2.imread("demo.jpg")[:, :, (2, 1, 0)]
-    extr = Extractor("checkpoint/ckpt.t7")
+    extr = Tflite_extractor("checkpoint/deepsort.tflite")
     feature = extr([img,img])
     print(feature.shape)
