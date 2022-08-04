@@ -3,8 +3,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import cv2
 import logging
-import tensorflow as tf
-
+import tflite_runtime.interpreter as tflite
 # from .model import Net
 # from model import Net
 
@@ -12,11 +11,11 @@ import tensorflow as tf
 
 class Tflite_extractor(object):
     def __init__(self,model_path):
-        self.interpreter = tf.lite.Interpreter(model_path = model_path)
+        self.interpreter = tflite.Interpreter(model_path = model_path)
         self.interpreter.allocate_tensors()
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
-        self.input_size = (50,3,128,64)
+        self.input_size = (10,3,128,64)
         self.input_data = np.zeros(self.input_size,dtype=np.float32)
         self.interpreter.resize_tensor_input(self.input_details[0]['index'],self.input_size)
         self.interpreter.allocate_tensors()
