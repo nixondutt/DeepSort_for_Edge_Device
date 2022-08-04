@@ -16,7 +16,7 @@ class Tflite_extractor(object):
         self.interpreter.allocate_tensors()
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
-        self.input_size = (20,3,128,64)
+        self.input_size = (50,3,128,64)
         self.input_data = np.zeros(self.input_size,dtype=np.float32)
         self.interpreter.resize_tensor_input(self.input_details[0]['index'],self.input_size)
         self.interpreter.allocate_tensors()
